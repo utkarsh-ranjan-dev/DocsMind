@@ -7,7 +7,7 @@ import { ApiError } from "../utils/apiError.js";
 
 
 
-const processDocument= async(filePath, fileType, ORiginalName )=>{
+const processDocument= async(filePath, fileType, originalName )=>{
     try {
         let loader;
 
