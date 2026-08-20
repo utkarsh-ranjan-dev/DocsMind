@@ -2,7 +2,6 @@ import { MongoDBAtlasVectorSearch } from "@langchain/mongodb";
 import { client } from "../config/db.js";
 import { embeddings } from "../services/embeddingService.js";
 
-
 const getVectorStore=()=>{
     const collection= client
     .db(process.env.MONGODB_DB)
@@ -15,7 +14,6 @@ const getVectorStore=()=>{
         embeddingKey:embedding
     });
 };
-
 
 
 const addChunk = async (chunk)=>{
@@ -40,7 +38,5 @@ const deleteDocument = async ()=>{
 
     await collection.deleteMany({"metadata.source": sourceName})
 };
-
-
 
 export {getVectorStore,addChunk,getAllDocuments,deleteDocument}
