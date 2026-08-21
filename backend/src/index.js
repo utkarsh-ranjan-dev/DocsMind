@@ -3,6 +3,9 @@ import cors from "cors";
 import dotenv from "dotenv";
 import {client, connectDB} from "./config/db.js"
 import { errorHandler } from "./middleware/error.Middleware.js";
+import documentRoutes from "./routes/documents.Routes.js"
+import queryRoutes from "./routes/query.Routes.js"
+
 // yeh env file ko load karti hai 
 dotenv.config();
 
@@ -30,6 +33,8 @@ app.get("/test", async (req,res)=>{
         });
     } 
 });
+app.use("/api/documents", documentRoutes)
+app.use("/api/query", queryRoutes)
 
 
 const PORT = process.env.PORT || 3000;
