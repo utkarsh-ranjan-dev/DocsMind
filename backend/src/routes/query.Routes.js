@@ -1,4 +1,3 @@
-import {similarSearchChunk} from "../model/queryModel.js"
 import express from "express";
 import {askQuestion} from "../controllers/query.Controller.js"
 

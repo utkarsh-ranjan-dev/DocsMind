@@ -1,57 +1,53 @@
 import fs from "fs";
-import { PDFLoader } from "langchain/document_loaders/fs/pdf";
-import { DocxLoader } from "langchain/document_loaders/fs/docx";
-import { TextLoader } from "langchain/document_loaders/fs/text";
-import { RecursiveCharacterTextSplitter } from "langchain/text_splitter";
-import { ApiError } from "../utils/apiError.js";
+import { PDFParse } from "pdf-parse";
+import mammoth from "mammoth";
+import { Document } from "@langchain/core/documents";
+import { RecursiveCharacterTextSplitter } from "@langchain/textsplitters";
+import { ApiError } from "../utils/ApiEror.js";
 
-
-
-const processDocument= async(filePath, fileType, originalName )=>{
+const processDocument = async (filePath, mimetype, originalName) => {
     try {
-        let loader;
+        let rawText = "";
 
-        if(fileType==="application/pdf")
-            loader= new PDFLoader(filePath);
+        // Check by both mimetype AND file extension (more reliable)
+        const ext = originalName.split('.').pop().toLowerCase();
 
-        else if(fileType==="applicaton/vnd.openxmlformats-officedocuments.wordprocessingml.document")
-            loader= new DocxLoader(filePath);
+        if (mimetype === "application/pdf" || ext === "pdf") {
+            const dataBuffer = fs.readFileSync(filePath);
+            const parser = new PDFParse({ data: dataBuffer });
+            const result = await parser.getText();
+            rawText = result.text;
+            await parser.destroy();
 
-        else if(fileType==="text/plain")
-            loadder= new TextLoader(fileType);
+        } else if (mimetype === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" || ext === "docx") {
+            const result = await mammoth.extractRawText({ path: filePath });
+            rawText = result.value;
 
-        else{
-            throw new ApiError(400, "file format not supported");
+        } else if (mimetype === "text/plain" || ext === "txt") {
+            rawText = fs.readFileSync(filePath, "utf-8");
+
+        } else {
+            throw new ApiError(400, `file format not supported. Received mimetype: ${mimetype}, extension: ${ext}`);
         }
 
+        // Wrap raw text into a LangChain Document object
+        const rawDocs = [new Document({ pageContent: rawText, metadata: { source: originalName } })];
 
-        const rawText = await loader.load();
-
-        const textSplitter= new RecursiveCharacterTextSplitter({
-            chunkSize:1000,
+        const textSplitter = new RecursiveCharacterTextSplitter({
+            chunkSize: 1000,
             chunkOverlap: 200
         });
 
-        const chunks = new textSplitter.splitDocuments(rawText);
-
-        const chunkWithMetaData= chunks.map((chunk)=>{
-            chunk.metaData={...chunk.metaData, source: originalName}
-            return chunk;
-        });
-
+        const chunks = await textSplitter.splitDocuments(rawDocs);
         fs.unlinkSync(filePath);
-        return chunkWithMetaData;
-        
+        return chunks;
+
     } catch (error) {
-        if(fs.existsSync(filePath))
-        {
-            fs.unlinkSync(filePath)
-
+        if (fs.existsSync(filePath)) {
+            fs.unlinkSync(filePath);
         }
-    throw new ApiError(500, "file process me dikkat :" + error.message);
-
-        
+        throw new ApiError(500, "file process me dikkat :" + error.message);
     }
 };
 
-export {processDocument};
+export { processDocument };

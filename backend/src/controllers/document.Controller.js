@@ -11,16 +11,16 @@ const feedDocument = asyncHandler(async(req,res)=>{
         throw new ApiError(400,"Please upload the file");
     };
 
-    const {path, fileType, originalName} = req.file;
+    const {path, mimetype, originalname} = req.file;
 
-    const chunk= await processDocument(path, fileType,originalName);
+    const chunk= await processDocument(path, mimetype, originalname);
 
     await addChunk(chunk);
 
     res.status(200).json({
         success: true,
-        message: "file uploaded successfuky",
-        fileName:originalName,
+        message: "file uploaded successfully",
+        fileName: originalname,
         totalChunk: chunk.length
     });
 });
@@ -39,7 +39,7 @@ const removeDocument= asyncHandler(async(req,res)=>{
 
     if(!sourceName)
     {
-        throw new ApiError(400,"Enter valid Fie NAme");
+        throw new ApiError(400,"Enter valid File Name");
     }
 
 
@@ -53,4 +53,3 @@ const removeDocument= asyncHandler(async(req,res)=>{
 
 
 export {feedDocument,listDocuments,removeDocument}
-

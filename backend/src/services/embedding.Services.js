@@ -1,11 +1,11 @@
 import { GoogleGenerativeAIEmbeddings } from "@langchain/google-genai";
-import dotenv from "dotenv"
+import dotenv from "dotenv";
 
-dotenv.config()
+dotenv.config({ path: './backend/.env' });
 
-
-const embedding = new GoogleGenerativeAIEmbeddings({
-    modelName: "text-embedding-004"
+const embeddings = new GoogleGenerativeAIEmbeddings({
+    model: "gemini-embedding-2", // FIX: Updated to an available model for this API key
+    apiKey: process.env.GOOGLE_API_KEY
 });
 
-export {embedding};
+export {embeddings};

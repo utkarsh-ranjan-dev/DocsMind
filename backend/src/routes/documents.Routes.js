@@ -6,7 +6,7 @@ import {upload} from "../middleware/upload.middleware.js";
 const router=express.Router();
 
 
-router.post("/feed",upload.single("document").feedDocument);
+router.post("/feed",upload.single("document"), feedDocument);
 
 router.get("/", listDocuments);
 

@@ -1,22 +1,28 @@
 import {MongoClient} from "mongodb";
 import dotenv from "dotenv";
 
-dotenv.config();
+dotenv.config({ path: './backend/.env' });
 
+// client starts as null, gets assigned inside connectDB()
+let client = null;
 
-const uri = process.env.MONGODB_URI;
-
-const client = new MongoClient(uri);
-
-const connectDB= async ()=>{
+const connectDB = async ()=>{
     try {
+        const uri = process.env.MONGODB_URI;
+
+        if(!uri){
+            throw new Error("MONGODB_URI nahi mila .env file me!");
+        }
+
+        // FIX: Create MongoClient HERE (not at top level) so env vars are loaded first
+        client = new MongoClient(uri);
         await client.connect();
         console.log("mongodb kaam kar raha hai ");
         
     } catch (error) {
-        console.log("mongodb kaam nahi kar raha hai")
+        console.log("mongodb kaam nahi kar raha hai:", error.message);
         process.exit(1);
-        
     }
 }
-export {client, connectDB};
+
+export {client, connectDB};

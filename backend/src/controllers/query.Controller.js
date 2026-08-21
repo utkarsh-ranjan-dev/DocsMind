@@ -15,14 +15,16 @@ const askQuestion= asyncHandler(async(req,res)=>{
 
     if(chunk.length===0)
     {
-        res.status(200).json({
+        // FIX: Added "return" so the code stops here and doesn't crash trying to continue below
+        return res.status(200).json({
             answer: "Please thoda aur data toh do tab batayunga ",
             sources:[]
         });
     }
 
 
-    const content = chunk.map(chunk=> chunk.pageContent).join("\n\n");
+    // FIX: Renamed "content" to "context" so it matches the ${context} variable used in the prompt below
+    const context = chunk.map(chunk=> chunk.pageContent).join("\n\n");
 
 
     const prompt = `
@@ -41,7 +43,8 @@ const askQuestion= asyncHandler(async(req,res)=>{
 
     const response = await llm.invoke(prompt);
 
-    const sources = chunk.map(chunk=> chunk.metadata.soures);
+    // Reverted back to the canonical LangChain metadata path
+    const sources = chunk.map(chunk=> chunk.metadata.source);
 
     const uniqueSources = [... new Set(sources)];
 
@@ -52,4 +55,4 @@ const askQuestion= asyncHandler(async(req,res)=>{
     });
 });
 
-export {askQuestion}
+export {askQuestion}
