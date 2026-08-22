@@ -6,14 +6,18 @@ import { errorHandler } from "./middleware/error.Middleware.js";
 import documentRoutes from "./routes/documents.Routes.js"
 import queryRoutes from "./routes/query.Routes.js";
 import insightsRoutes from "./routes/insights.Routes.js";
+import notebookRoutes from "./routes/notebook.Routes.js";
+import { clerkMiddleware } from '@clerk/express';
+import { requireJsonAuth } from './middleware/auth.Middleware.js';
 
-// dotenv loaded once here (db.js also loads it, that's fine - second call is a no-op)
-dotenv.config({ path: './backend/.env' });
+// dotenv loaded once here
+dotenv.config({ path: './.env' }); // Adjusted since it runs in backend dir via nodemon usually, though keeping it safe
 
 const app = express();
 
 app.use(cors());
 app.use(express.json());
+app.use(clerkMiddleware()); // Injects req.auth
 
 // test route
 app.get("/test", async (req,res)=>{
@@ -31,15 +35,16 @@ app.get("/test", async (req,res)=>{
     }
 });
 
-app.use("/api/documents", documentRoutes)
-app.use("/api/query", queryRoutes);
-app.use("/api/insights", insightsRoutes);
+// Protect all /api routes with requireJsonAuth
+app.use("/api/documents", requireJsonAuth, documentRoutes)
+app.use("/api/query", requireJsonAuth, queryRoutes);
+app.use("/api/insights", requireJsonAuth, insightsRoutes);
+app.use("/api/notebooks", requireJsonAuth, notebookRoutes);
 
 app.use(errorHandler);
 
 const PORT = process.env.PORT || 3000;
 
-// FIX: connectDB BEFORE app.listen so DB is ready before accepting requests
 const startServer = async () => {
     await connectDB();
     app.listen(PORT, () => {
@@ -48,3 +53,4 @@ const startServer = async () => {
 };
 
 startServer();
+

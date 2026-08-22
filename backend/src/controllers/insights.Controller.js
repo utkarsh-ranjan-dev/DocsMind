@@ -2,9 +2,11 @@ import { asyncHandler } from "../utils/AsyncHandler.js";
 import { getAllDocuments, getStorageStats, getChatSessions } from "../model/documentModel.js";
 
 const getInsights = asyncHandler(async (req, res) => {
-    const docs = await getAllDocuments();
-    const stats = await getStorageStats();
-    const sessions = await getChatSessions();
+    const userId = req.auth.userId;
+
+    const docs = await getAllDocuments(null, userId);
+    const stats = await getStorageStats(userId);
+    const sessions = await getChatSessions(null, userId);
 
     res.status(200).json({
         success: true,

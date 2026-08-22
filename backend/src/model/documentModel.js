@@ -1,12 +1,10 @@
 import { MongoDBAtlasVectorSearch } from "@langchain/mongodb";
 import { client } from "../config/db.js";
 import { embeddings } from "../services/embedding.Services.js";
+import crypto from "crypto";
 
 const getVectorStore = () => {
-    const collection = client
-    .db(process.env.MONGODB_DB)
-    .collection(process.env.MONGODB_COLLECTION);
-
+    const collection = client.db(process.env.MONGODB_DB).collection(process.env.MONGODB_COLLECTION);
     return new MongoDBAtlasVectorSearch(embeddings, {
         collection: collection,
         indexName: "vector_index", 
@@ -15,14 +13,23 @@ const getVectorStore = () => {
     });
 };
 
-const getFileMetaCollection = () => {
-    return client.db(process.env.MONGODB_DB).collection("FileMetadata");
+const getFileMetaCollection = () => client.db(process.env.MONGODB_DB).collection("FileMetadata");
+const getChatHistoryCollection = () => client.db(process.env.MONGODB_DB).collection("ChatHistory");
+const getNotebookCollection = () => client.db(process.env.MONGODB_DB).collection("Notebooks");
+
+// --- NOTEBOOK METHODS ---
+const createNotebook = async (name, userId) => {
+    const id = crypto.randomUUID();
+    const notebook = { id, name, userId, createdAt: new Date() };
+    await getNotebookCollection().insertOne(notebook);
+    return notebook;
 };
 
-const getChatHistoryCollection = () => {
-    return client.db(process.env.MONGODB_DB).collection("ChatHistory");
+const getNotebooks = async (userId) => {
+    return await getNotebookCollection().find({ userId }).sort({ createdAt: -1 }).toArray();
 };
 
+// --- DOCUMENT METHODS ---
 const addChunk = async (chunk) => {
     const vectorStore = getVectorStore();
     await vectorStore.addDocuments(chunk);
@@ -30,24 +37,24 @@ const addChunk = async (chunk) => {
 
 const addDocumentMetadata = async (metadata) => {
     const collection = getFileMetaCollection();
-    // Use upsert to avoid duplicates if re-uploaded
     await collection.updateOne(
-        { fileName: metadata.fileName },
+        { fileName: metadata.fileName, notebookId: metadata.notebookId },
         { $set: metadata },
         { upsert: true }
     );
 };
 
-const getAllDocuments = async () => {
+const getAllDocuments = async (notebookId, userId) => {
     const collection = getFileMetaCollection();
-    // Sort by newest first
-    return await collection.find({}).sort({ uploadedAt: -1 }).toArray();
+    const filter = notebookId ? { notebookId, userId } : { userId };
+    return await collection.find(filter).sort({ uploadedAt: -1 }).toArray();
 };
 
-const getStorageStats = async () => {
+const getStorageStats = async (userId) => {
     const collection = getFileMetaCollection();
     const result = await collection.aggregate([
-        { $group: { _id: null, totalBytes: { $sum: "" } } }
+        { $match: { userId } },
+        { $group: { _id: null, totalBytes: { $sum: "$size" } } }
     ]).toArray();
     
     const usedBytes = result.length > 0 ? result[0].totalBytes : 0;
@@ -55,25 +62,24 @@ const getStorageStats = async () => {
     return { usedBytes, limitBytes };
 };
 
-const deleteDocument = async (sourceName) => {
+const deleteDocument = async (sourceName, notebookId, userId) => {
     const vectorCollection = client.db(process.env.MONGODB_DB).collection(process.env.MONGODB_COLLECTION);
     const metaCollection = getFileMetaCollection();
 
-    await vectorCollection.deleteMany({ "metadata.source": sourceName });
-    await metaCollection.deleteOne({ fileName: sourceName });
+    await vectorCollection.deleteMany({ "metadata.source": sourceName, notebookId, userId });
+    await metaCollection.deleteOne({ fileName: sourceName, notebookId, userId });
 };
 
-// Chat History Methods
-const saveChatMessage = async (sessionId, role, content, sources = []) => {
+// --- CHAT HISTORY METHODS ---
+const saveChatMessage = async (sessionId, notebookId, role, content, sources = [], userId) => {
     const collection = getChatHistoryCollection();
     const timestamp = new Date();
-    
     const message = { role, content, sources, timestamp };
     
     await collection.updateOne(
-        { sessionId },
+        { sessionId, userId },
         { 
-            $setOnInsert: { createdAt: timestamp },
+            $setOnInsert: { createdAt: timestamp, notebookId, userId },
             $set: { updatedAt: timestamp },
             $push: { messages: message }
         },
@@ -81,19 +87,20 @@ const saveChatMessage = async (sessionId, role, content, sources = []) => {
     );
 };
 
-const getChatSessions = async () => {
+const getChatSessions = async (notebookId, userId) => {
     const collection = getChatHistoryCollection();
-    return await collection.find({}, { projection: { messages: { $slice: 1 }, updatedAt: 1, sessionId: 1 } })
+    const filter = notebookId ? { notebookId, userId } : { userId };
+    return await collection.find(filter, { projection: { messages: { $slice: 1 }, updatedAt: 1, sessionId: 1, notebookId: 1 } })
                            .sort({ updatedAt: -1 }).toArray();
 };
 
-const getChatSessionById = async (sessionId) => {
+const getChatSessionById = async (sessionId, userId) => {
     const collection = getChatHistoryCollection();
-    return await collection.findOne({ sessionId });
+    return await collection.findOne({ sessionId, userId });
 };
 
 export { 
     getVectorStore, addChunk, addDocumentMetadata, getAllDocuments, 
     deleteDocument, getStorageStats, saveChatMessage, getChatSessions, 
-    getChatSessionById 
+    getChatSessionById, createNotebook, getNotebooks
 };
