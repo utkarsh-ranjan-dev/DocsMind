@@ -9,7 +9,6 @@ const processDocument = async (filePath, mimetype, originalName) => {
     try {
         let rawText = "";
 
-        // Check by both mimetype AND file extension (more reliable)
         const ext = originalName.split('.').pop().toLowerCase();
 
         if (mimetype === "application/pdf" || ext === "pdf") {
@@ -30,7 +29,6 @@ const processDocument = async (filePath, mimetype, originalName) => {
             throw new ApiError(400, `file format not supported. Received mimetype: ${mimetype}, extension: ${ext}`);
         }
 
-        // Wrap raw text into a LangChain Document object
         const rawDocs = [new Document({ pageContent: rawText, metadata: { source: originalName } })];
 
         const textSplitter = new RecursiveCharacterTextSplitter({

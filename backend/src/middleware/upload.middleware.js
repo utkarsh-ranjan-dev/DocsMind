@@ -4,12 +4,11 @@ import { ApiError } from "../utils/ApiEror.js";
 
 const storage  = multer.diskStorage({
     destination: (req,file,cb)=>{
-        // FIX: Use absolute path so it works regardless of where the server is launched from
         cb(null, path.join(process.cwd(), "uploads"));
     },
-    filename : (req,file,cb)=>{ // FIX 2: Changed "fileName" to "filename" (Multer requires lowercase 'n')
+    filename : (req,file,cb)=>{ 
         const uniqueSuffix = Date.now()+"-"+ Math.round(Math.random()*1E9);
-        cb(null, uniqueSuffix+"-"+file.originalname); // FIX 3: Changed "file.fileName" to "file.originalname" (Multer property name)
+        cb(null, uniqueSuffix+"-"+file.originalname); 
     }
     
 });
@@ -18,7 +17,7 @@ const storage  = multer.diskStorage({
 const fileFilter = (req,file,cb)=>{
     const allowedFile = /pdf|docx|txt/;
 
-    const extName = allowedFile.test(path.extname(file.originalname).toLowerCase()); // FIX 4: Changed "file.originalName" to "file.originalname" (Multer forces lowercase)
+    const extName = allowedFile.test(path.extname(file.originalname).toLowerCase()); 
 
     if(extName)
     {

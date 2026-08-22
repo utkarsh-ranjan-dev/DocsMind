@@ -4,7 +4,7 @@ import dotenv from "dotenv";
 dotenv.config({ path: './backend/.env' });
 
 const embeddings = new GoogleGenerativeAIEmbeddings({
-    model: "gemini-embedding-2", // FIX: Updated to an available model for this API key
+    model: "gemini-embedding-2", 
     apiKey: process.env.GOOGLE_API_KEY
 });
 

@@ -9,7 +9,6 @@ export const requireJsonAuth = (req, res, next) => {
         return res.status(401).json({ success: false, message: "Unauthorized. Please sign in." });
     }
     
-    // Inject userId back so controllers can use it easily as req.auth.userId (like older versions did)
     req.auth = authObj;
     next();
 };

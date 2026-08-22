@@ -58,7 +58,7 @@ const getStorageStats = async (userId) => {
     ]).toArray();
     
     const usedBytes = result.length > 0 ? result[0].totalBytes : 0;
-    const limitBytes = 10 * 1024 * 1024 * 1024; // 10 GB
+    const limitBytes = 10 * 1024 * 1024 * 1024; 
     return { usedBytes, limitBytes };
 };
 

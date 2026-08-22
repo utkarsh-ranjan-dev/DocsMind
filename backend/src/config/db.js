@@ -3,7 +3,6 @@ import dotenv from "dotenv";
 
 dotenv.config({ path: './backend/.env' });
 
-// client starts as null, gets assigned inside connectDB()
 let client = null;
 
 const connectDB = async ()=>{
@@ -14,7 +13,6 @@ const connectDB = async ()=>{
             throw new Error("MONGODB_URI nahi mila .env file me!");
         }
 
-        // FIX: Create MongoClient HERE (not at top level) so env vars are loaded first
         client = new MongoClient(uri);
         await client.connect();
         console.log("mongodb kaam kar raha hai ");
@@ -25,4 +23,4 @@ const connectDB = async ()=>{
     }
 }
 
-export {client, connectDB};
+export {client, connectDB};

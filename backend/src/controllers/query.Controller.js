@@ -11,14 +11,13 @@ const queryDocument = asyncHandler(async (req, res) => {
 
     const vectorStore = getVectorStore();
     
-    // Atlas Vector Search Pre-filter configuration
     const filter = {
         preFilter: {
             "notebookId": { "$eq": notebookId }
         }
     };
 
-    const result = await vectorStore.similaritySearch(question, 5, filter);
+    const result = await vectorStore.similaritySearch(question, 7, filter);
 
     const context = result.map((chunk) => chunk.pageContent).join("\n");
     const sources = [...new Set(result.map((chunk) => chunk.metadata.source))];
