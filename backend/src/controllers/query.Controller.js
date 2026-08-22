@@ -1,58 +1,67 @@
 import { asyncHandler } from "../utils/AsyncHandler.js";
 import { ApiError } from "../utils/ApiEror.js";
-import {llm} from "../services/llm.Services.js"
-import { similarSearchChunk } from "../model/queryModel.js";
+import { getVectorStore, saveChatMessage, getChatSessions, getChatSessionById } from "../model/documentModel.js";
+import { llm } from "../services/llm.Services.js";
+import { PromptTemplate } from "@langchain/core/prompts";
 
-const askQuestion= asyncHandler(async(req,res)=>{
-    const {question}= req.body;
+const queryDocument = asyncHandler(async (req, res) => {
+    const { question, sessionId = 'default-session' } = req.body;
+    if (!question) throw new ApiError(400, "Need the query");
 
-    if(!question)
-    {
-        throw new ApiError(400,"Please question toh do ");
-    }
+    const vectorStore = getVectorStore();
+    const result = await vectorStore.similaritySearch(question, 5);
 
-    const chunk=await similarSearchChunk(question);
+    const context = result.map((chunk) => chunk.pageContent).join("\n");
+    // Get unique sources
+    const sources = [...new Set(result.map((chunk) => chunk.metadata.source))];
 
-    if(chunk.length===0)
-    {
-        // FIX: Added "return" so the code stops here and doesn't crash trying to continue below
-        return res.status(200).json({
-            answer: "Please thoda aur data toh do tab batayunga ",
-            sources:[]
-        });
-    }
+    // Build detailed sources with exact content for frontend Source Preview
+    const detailedSources = result.map(chunk => ({
+        fileName: chunk.metadata.source,
+        text: chunk.pageContent
+    }));
 
-
-    // FIX: Renamed "content" to "context" so it matches the ${context} variable used in the prompt below
-    const context = chunk.map(chunk=> chunk.pageContent).join("\n\n");
-
-
-    const prompt = `
-        You are a helpful assistant. Answer the user's question based ONLY on the context below. 
-        If the answer is not in the context, say "I don't know based on the provided documents."
+    const promptTemplate = PromptTemplate.fromTemplate(
+        `You are an AI assistant. Answer the question based strictly on the provided context.
         
         Context:
-        ${context}
+        {context}
         
         Question:
-        ${question}
+        {question}
         
-        Answer:
-    `;
+        Answer:`
+    );
 
+    const prompt = await promptTemplate.format({ context, question });
+    const aiResponse = await llm.invoke(prompt);
+    const answerText = aiResponse.content;
 
-    const response = await llm.invoke(prompt);
-
-    // Reverted back to the canonical LangChain metadata path
-    const sources = chunk.map(chunk=> chunk.metadata.source);
-
-    const uniqueSources = [... new Set(sources)];
+    // Save to History
+    await saveChatMessage(sessionId, 'user', question);
+    await saveChatMessage(sessionId, 'ai', answerText, detailedSources);
 
     res.status(200).json({
         success: true,
-        answer: response.content,
-        source: uniqueSources
+        answer: answerText,
+        source: sources,
+        detailedSources: detailedSources,
+        sessionId
     });
 });
 
-export {askQuestion}
+const getSessions = asyncHandler(async (req, res) => {
+    const sessions = await getChatSessions();
+    res.status(200).json({ success: true, sessions });
+});
+
+const getSessionMessages = asyncHandler(async (req, res) => {
+    const { sessionId } = req.params;
+    const session = await getChatSessionById(sessionId);
+    res.status(200).json({ 
+        success: true, 
+        messages: session ? session.messages : [] 
+    });
+});
+
+export { queryDocument, getSessions, getSessionMessages };

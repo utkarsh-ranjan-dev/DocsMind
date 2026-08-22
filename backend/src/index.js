@@ -4,7 +4,8 @@ import dotenv from "dotenv";
 import { connectDB, client } from "./config/db.js"
 import { errorHandler } from "./middleware/error.Middleware.js";
 import documentRoutes from "./routes/documents.Routes.js"
-import queryRoutes from "./routes/query.Routes.js"
+import queryRoutes from "./routes/query.Routes.js";
+import insightsRoutes from "./routes/insights.Routes.js";
 
 // dotenv loaded once here (db.js also loads it, that's fine - second call is a no-op)
 dotenv.config({ path: './backend/.env' });
@@ -31,7 +32,8 @@ app.get("/test", async (req,res)=>{
 });
 
 app.use("/api/documents", documentRoutes)
-app.use("/api/query", queryRoutes)
+app.use("/api/query", queryRoutes);
+app.use("/api/insights", insightsRoutes);
 
 app.use(errorHandler);
 
