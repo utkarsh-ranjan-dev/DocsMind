@@ -1,3 +1,4 @@
+import { API_URL } from './config';
 import { useState, useEffect } from 'react';
 import { Show, SignInButton, useAuth } from '@clerk/react';
 import { Sparkles, ShieldCheck } from 'lucide-react';
@@ -6,10 +7,20 @@ import KnowledgeVault from './components/KnowledgeVault';
 import ChatArea from './components/ChatArea';
 import SourcePreview from './components/SourcePreview';
 import Insights from './components/Insights';
+import History from './components/History';
+import Settings from './components/Settings';
+import AllDocuments from './components/AllDocuments';
 import Collections from './components/Collections';
 import axios from 'axios';
+import SharedWorkspace from './components/SharedWorkspace';
 
 function App() {
+  const path = window.location.pathname;
+  if (path.startsWith('/shared/')) {
+    const id = path.split('/shared/')[1];
+    return <SharedWorkspace notebookId={id} />;
+  }
+
   const [activeTab, setActiveTab] = useState('Collections');
   const [activeSource, setActiveSource] = useState(null);
   
@@ -43,12 +54,12 @@ function App() {
 
   const fetchDocsAndStats = async () => {
     try {
-      const docUrl = activeNotebook ? `http://localhost:3000/api/documents?notebookId=${activeNotebook.id}` : 'http://localhost:3000/api/documents';
+      const docUrl = activeNotebook ? `${API_URL}/api/documents?notebookId=${activeNotebook.id}` : `${API_URL}/api/documents`;
       const token = await getToken();
       const resDocs = await axios.get(docUrl, { headers: { Authorization: `Bearer ${token}` } });
       if (resDocs.data.success) setDocuments(resDocs.data.document || []);
       
-      const resStats = await axios.get('http://localhost:3000/api/documents/stats', { headers: { Authorization: `Bearer ${token}` } });
+      const resStats = await axios.get(`${API_URL}/api/documents/stats`, { headers: { Authorization: `Bearer ${token}` } });
       if (resStats.data.success) setStats(resStats.data.stats);
     } catch (err) {
       console.error('Error fetching data:', err);
@@ -58,7 +69,7 @@ function App() {
   const fetchNotebooks = async () => {
     try {
       const token = await getToken();
-      const res = await axios.get('http://localhost:3000/api/notebooks', { headers: { Authorization: `Bearer ${token}` } });
+      const res = await axios.get(`${API_URL}/api/notebooks`, { headers: { Authorization: `Bearer ${token}` } });
       if (res.data.success) {
         setNotebooks(res.data.notebooks || []);
       }
@@ -146,10 +157,16 @@ function App() {
           <Insights />
         )}
         
-        {(activeTab !== 'Chat' && activeTab !== 'Insights' && activeTab !== 'Collections') && (
-          <div className="flex-1 flex items-center justify-center text-gray-400">
-            {activeTab} feature coming soon!
-          </div>
+        {activeTab === 'History' && (
+          <History setActiveTab={setActiveTab} setActiveNotebook={setActiveNotebook} notebooks={notebooks} />
+        )}
+
+        {activeTab === 'Settings' && (
+          <Settings />
+        )}
+
+        {activeTab === 'Documents' && (
+          <AllDocuments notebooks={notebooks} />
         )}
       </Show>
     </div>
@@ -157,6 +174,10 @@ function App() {
 }
 
 export default App;
+
+
+
+
 
 
 

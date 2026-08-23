@@ -1,3 +1,4 @@
+import { API_URL } from '../config';
 import { Search, Plus, UploadCloud, FileText, Trash2, Loader2, Book } from 'lucide-react';
 import { useState, useRef } from 'react';
 import { useAuth } from '@clerk/react';
@@ -8,6 +9,23 @@ export default function KnowledgeVault({ documents, refreshDocs, activeNotebook 
   const { getToken } = useAuth();
   const fileInputRef = useRef(null);
 
+    const [summary, setSummary] = useState(null);
+  const [loadingSummary, setLoadingSummary] = useState(false);
+
+  const handleSummarize = async () => {
+    setLoadingSummary(true);
+    try {
+      const token = await getToken();
+      const res = await axios.post(`${API_URL}/api/documents/summarize`, { notebookId: activeNotebook.id }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.data.success) setSummary(res.data.summary);
+    } catch (err) {
+      alert("Failed to generate summary: " + (err.response?.data?.message || err.message));
+    } finally {
+      setLoadingSummary(false);
+    }
+  };
   const handleUpload = async (e) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
@@ -19,7 +37,7 @@ export default function KnowledgeVault({ documents, refreshDocs, activeNotebook 
       formData.append('notebookId', activeNotebook.id);
       
       const token = await getToken();
-      await axios.post('http://localhost:3000/api/documents/feed', formData, {
+      await axios.post(`${API_URL}/api/documents/feed`, formData, {
         headers: { 'Content-Type': 'multipart/form-data', Authorization: `Bearer ${token}` }
       });
       
@@ -36,7 +54,7 @@ export default function KnowledgeVault({ documents, refreshDocs, activeNotebook 
     if (!confirm(`Delete ${fileName}?`)) return;
     try {
       const token = await getToken();
-      await axios.delete('http://localhost:3000/api/documents', { 
+      await axios.delete(`${API_URL}/api/documents`, { 
         headers: { Authorization: `Bearer ${token}` },
         data: { fileName, notebookId: activeNotebook.id } 
       });
@@ -125,5 +143,8 @@ export default function KnowledgeVault({ documents, refreshDocs, activeNotebook 
     </div>
   );
 }
+
+
+
 
 

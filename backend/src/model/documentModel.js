@@ -90,7 +90,7 @@ const saveChatMessage = async (sessionId, notebookId, role, content, sources = [
 const getChatSessions = async (notebookId, userId) => {
     const collection = getChatHistoryCollection();
     const filter = notebookId ? { notebookId, userId } : { userId };
-    return await collection.find(filter, { projection: { messages: { $slice: 1 }, updatedAt: 1, sessionId: 1, notebookId: 1 } })
+    return await collection.find(filter, { projection: { messages: { $slice: 1 }, updatedAt: 1, sessionId: 1, notebookId: 1, name: 1 } })
                            .sort({ updatedAt: -1 }).toArray();
 };
 
@@ -99,8 +99,24 @@ const getChatSessionById = async (sessionId, userId) => {
     return await collection.findOne({ sessionId, userId });
 };
 
+const renameChatSession = async (sessionId, userId, name) => {
+    const collection = getChatHistoryCollection();
+    return await collection.updateOne({ sessionId, userId }, { $set: { name } });
+};
+const toggleNotebookVisibility = async (id, userId, isPublic) => {
+    return await getNotebookCollection().updateOne({ id, userId }, { $set: { isPublic } });
+};
+
+const getNotebookById = async (id) => {
+    return await getNotebookCollection().findOne({ id });
+};
 export { 
+    toggleNotebookVisibility, getNotebookById, 
+    renameChatSession, 
     getVectorStore, addChunk, addDocumentMetadata, getAllDocuments, 
     deleteDocument, getStorageStats, saveChatMessage, getChatSessions, 
     getChatSessionById, createNotebook, getNotebooks
 };
+
+
+

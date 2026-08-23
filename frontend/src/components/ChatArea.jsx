@@ -1,5 +1,6 @@
+import { API_URL } from '../config';
 import { useState, useRef, useEffect } from 'react';
-import { Send, Paperclip, Mic, Sparkles, User, FileText } from 'lucide-react';
+import { Send, Paperclip, Mic, Sparkles, User, FileText, Copy, Check, Share2, Link } from 'lucide-react';
 import { marked } from 'marked';
 import { useAuth } from '@clerk/react';
 import axios from 'axios';
@@ -9,6 +10,32 @@ export default function ChatArea({ setActiveSource, activeNotebook }) {
   const { getToken } = useAuth();
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [copiedIndex, setCopiedIndex] = useState(null);
+
+  const handleCopy = (text, idx) => {
+    navigator.clipboard.writeText(text);
+    setCopiedIndex(idx);
+    setTimeout(() => setCopiedIndex(null), 2000);
+  };
+    const [shareStatus, setShareStatus] = useState('Share');
+
+  const handleShare = async () => {
+    try {
+      setShareStatus('Generating...');
+      const token = await getToken();
+      await axios.put(`${API_URL}/api/notebooks/${activeNotebook.id}/share`, { isPublic: true }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      const shareUrl = `${window.location.origin}/shared/${activeNotebook.id}`;
+      navigator.clipboard.writeText(shareUrl);
+      setShareStatus('Copied Link!');
+      setTimeout(() => setShareStatus('Share'), 3000);
+    } catch (err) {
+      console.error(err);
+      setShareStatus('Error');
+    }
+  };
   const messagesEndRef = useRef(null);
 
   const scrollToBottom = () => {
@@ -18,7 +45,7 @@ export default function ChatArea({ setActiveSource, activeNotebook }) {
   useEffect(() => {
     if (!activeNotebook) return;
     setMessages([]);
-    axios.get(`http://localhost:3000/api/query/history/${activeNotebook.id}`)
+    axios.get(`${API_URL}/api/query/history/${activeNotebook.id}`)
       .then(res => {
         if (res.data.success && res.data.messages) {
           setMessages(res.data.messages);
@@ -40,23 +67,72 @@ export default function ChatArea({ setActiveSource, activeNotebook }) {
     setQuestion('');
     setLoading(true);
 
+    setMessages(prev => [...prev, { role: 'ai', content: '', detailedSources: [] }]);
+
     try {
       const token = await getToken();
-      const res = await axios.post('http://localhost:3000/api/query', { 
-        question: userQ,
-        notebookId: activeNotebook.id,
-        sessionId: activeNotebook.id
+      const response = await fetch(`${API_URL}/api/query/stream`, {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}` 
+        },
+        body: JSON.stringify({ 
+          question: userQ,
+          notebookId: activeNotebook.id,
+          sessionId: activeNotebook.id
+        })
       });
-      if (res.data.success) {
-        setMessages(prev => [...prev, { 
-          role: 'ai', 
-          content: res.data.answer,
-          detailedSources: res.data.detailedSources || []
-        }]);
+
+      if (!response.ok) throw new Error("Server error");
+      setLoading(false); 
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder('utf-8');
+      let done = false;
+      let buffer = "";
+
+      while (!done) {
+        const { value, done: readerDone } = await reader.read();
+        done = readerDone;
+        if (value) {
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || "";
+          
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              try {
+                const data = JSON.parse(line.slice(6));
+                
+                setMessages(prev => {
+                  const newMessages = [...prev];
+                  const lastMsg = { ...newMessages[newMessages.length - 1] };
+                  
+                  if (data.type === 'sources') {
+                    lastMsg.detailedSources = data.detailedSources;
+                  } else if (data.type === 'chunk') {
+                    lastMsg.content += data.content;
+                  } else if (data.type === 'error') {
+                    lastMsg.content += "\n\nError: " + data.message;
+                  }
+                  
+                  newMessages[newMessages.length - 1] = lastMsg;
+                  return newMessages;
+                });
+              } catch (e) {
+                // Ignore incomplete json chunks
+              }
+            }
+          }
+        }
       }
     } catch (err) {
-      setMessages(prev => [...prev, { role: 'ai', content: "Failed to connect to the server." }]);
-    } finally {
+      setMessages(prev => {
+        const newMessages = [...prev];
+        newMessages[newMessages.length - 1].content = "Failed to connect to the server.";
+        return newMessages;
+      });
       setLoading(false);
     }
   };
@@ -91,10 +167,19 @@ export default function ChatArea({ setActiveSource, activeNotebook }) {
                 {msg.role === 'user' ? (
                   <p>{String(msg.content || "")}</p>
                 ) : (
-                  <div 
+                  <div className="relative group w-full">
+                    <div 
                     className="prose prose-sm prose-blue max-w-none text-[15px] leading-relaxed break-words"
                     dangerouslySetInnerHTML={{ __html: marked.parse(String(msg.content || "")) }}
                   />
+                    <button
+                      onClick={() => handleCopy(String(msg.content || ""), idx)}
+                      className="absolute -top-2 -right-2 p-1.5 text-gray-400 hover:text-gray-700 bg-white border border-gray-200 hover:bg-gray-50 shadow-sm rounded-lg opacity-0 group-hover:opacity-100 transition-all z-10"
+                      title="Copy response"
+                    >
+                      {copiedIndex === idx ? <Check size={14} className="text-green-500" /> : <Copy size={14} />}
+                    </button>
+                  </div>
                 )}
               </div>
               
@@ -155,5 +240,10 @@ export default function ChatArea({ setActiveSource, activeNotebook }) {
     </div>
   );
 }
+
+
+
+
+
 
 

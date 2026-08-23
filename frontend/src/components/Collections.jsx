@@ -1,3 +1,4 @@
+import { API_URL } from '../config';
 import { useState, useEffect } from 'react';
 import { Plus, Book, ChevronRight, Loader2 } from 'lucide-react';
 import { useAuth } from '@clerk/react';
@@ -15,7 +16,7 @@ export default function Collections({ notebooks, setNotebooks, setActiveNotebook
     setLoading(true);
     try {
       const token = await getToken();
-      const res = await axios.post('http://localhost:3000/api/notebooks', { name: newNotebookName }, { headers: { Authorization: `Bearer ${token}` } });
+      const res = await axios.post(`${API_URL}/api/notebooks`, { name: newNotebookName }, { headers: { Authorization: `Bearer ${token}` } });
       if (res.data.success) {
         setNotebooks([res.data.notebook, ...notebooks]);
         setNewNotebookName('');
@@ -87,5 +88,7 @@ export default function Collections({ notebooks, setNotebooks, setActiveNotebook
     </div>
   );
 }
+
+
 
 

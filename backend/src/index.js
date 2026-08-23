@@ -7,6 +7,7 @@ import documentRoutes from "./routes/documents.Routes.js"
 import queryRoutes from "./routes/query.Routes.js";
 import insightsRoutes from "./routes/insights.Routes.js";
 import notebookRoutes from "./routes/notebook.Routes.js";
+import publicRoutes from "./routes/public.Routes.js";
 import { clerkMiddleware } from '@clerk/express';
 import { requireJsonAuth } from './middleware/auth.Middleware.js';
 
@@ -15,7 +16,23 @@ dotenv.config({ path: './.env' }); // Adjusted since it runs in backend dir via 
 
 const app = express();
 
-app.use(cors());
+const allowedOrigins = [
+  process.env.FRONTEND_URL,        // e.g. https://docsmind.vercel.app
+  'http://localhost:5173',          // local Vite dev server
+  'http://localhost:3000',
+].filter(Boolean);
+
+app.use(cors({
+  origin: (origin, callback) => {
+    // Allow requests with no origin (mobile apps, curl, Render health checks)
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error(`CORS blocked: ${origin}`));
+    }
+  },
+  credentials: true,
+}));
 app.use(express.json());
 app.use(clerkMiddleware()); // Injects req.auth
 
@@ -40,6 +57,7 @@ app.use("/api/documents", requireJsonAuth, documentRoutes)
 app.use("/api/query", requireJsonAuth, queryRoutes);
 app.use("/api/insights", requireJsonAuth, insightsRoutes);
 app.use("/api/notebooks", requireJsonAuth, notebookRoutes);
+app.use("/api/public", publicRoutes);
 
 app.use(errorHandler);
 
@@ -53,4 +71,5 @@ const startServer = async () => {
 };
 
 startServer();
+
 

@@ -1,3 +1,4 @@
+import { API_URL } from '../config';
 import { useState, useEffect } from 'react';
 import { useAuth } from '@clerk/react';
 import axios from 'axios';
@@ -8,7 +9,7 @@ export default function Insights() {
   const { getToken } = useAuth();
 
   useEffect(() => {
-    getToken().then(token => axios.get('http://localhost:3000/api/insights', { headers: { Authorization: `Bearer ${token}` } }))
+    getToken().then(token => axios.get(`${API_URL}/api/insights`, { headers: { Authorization: `Bearer ${token}` } }))
       .then(res => {
         if (res.data.success) setData(res.data.data);
       })
@@ -63,5 +64,7 @@ export default function Insights() {
     </div>
   );
 }
+
+
 
 
