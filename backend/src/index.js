@@ -17,17 +17,20 @@ dotenv.config({ path: './.env' }); // Adjusted since it runs in backend dir via 
 const app = express();
 
 const allowedOrigins = [
-  process.env.FRONTEND_URL,        // e.g. https://docsmind.vercel.app
-  'http://localhost:5173',          // local Vite dev server
+  process.env.FRONTEND_URL,                   // Set in Render env vars
+  'https://frontend-tau-plum-63.vercel.app',   // Your Vercel app
+  'http://localhost:5173',                      // Local Vite dev server
   'http://localhost:3000',
 ].filter(Boolean);
 
 app.use(cors({
   origin: (origin, callback) => {
     // Allow requests with no origin (mobile apps, curl, Render health checks)
-    if (!origin || allowedOrigins.includes(origin)) {
+    // Also allow any *.vercel.app subdomain as a safety net
+    if (!origin || allowedOrigins.includes(origin) || origin.endsWith('.vercel.app')) {
       callback(null, true);
     } else {
+      console.error(`BACKEND ERROR: Error: CORS blocked: ${origin}`);
       callback(new Error(`CORS blocked: ${origin}`));
     }
   },
