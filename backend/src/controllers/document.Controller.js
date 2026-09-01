@@ -1,6 +1,6 @@
 import { asyncHandler } from "../utils/AsyncHandler.js"
 import { ApiError } from "../utils/ApiEror.js"
-import { processDocument } from "../services/loader.Services.js"
+import { processDocument, processUrl } from "../services/loader.Services.js"
 import { getVectorStore, addChunk, getAllDocuments, deleteDocument, addDocumentMetadata, getStorageStats } from "../model/documentModel.js"
 
 const feedDocument = asyncHandler(async(req, res) => {
@@ -30,6 +30,33 @@ const feedDocument = asyncHandler(async(req, res) => {
     });
 
     res.status(200).json({ success: true, message: "file uploaded", fileName: originalname });
+});
+
+const feedUrl = asyncHandler(async(req, res) => {
+    const { url, notebookId } = req.body;
+    const userId = req.auth.userId;
+    
+    if (!url || !notebookId) throw new ApiError(400, "URL and notebookId are required");
+
+    const { chunks, size } = await processUrl(url);
+
+    chunks.forEach(c => {
+        c.metadata = { ...c.metadata, notebookId, userId };
+    });
+
+    await addChunk(chunks);
+
+    await addDocumentMetadata({
+        fileName: url,
+        mimetype: 'text/html',
+        size: size,
+        uploadedAt: new Date(),
+        status: 'Indexed',
+        notebookId: notebookId,
+        userId: userId
+    });
+
+    res.status(200).json({ success: true, message: "URL content extracted and indexed", fileName: url });
 });
 
 const listDocuments = asyncHandler(async(req, res) => {
@@ -90,5 +117,5 @@ const summarizeNotebook = asyncHandler(async (req, res) => {
     res.status(200).json({ success: true, summary: aiResponse.content });
 });
 
-export { feedDocument, listDocuments, removeDocument, getStats, summarizeNotebook };
+export { feedDocument, feedUrl, listDocuments, removeDocument, getStats, summarizeNotebook };
 

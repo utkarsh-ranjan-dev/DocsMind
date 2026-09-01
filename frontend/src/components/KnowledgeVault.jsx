@@ -1,5 +1,5 @@
 import { API_URL } from '../config';
-import { Search, Plus, UploadCloud, FileText, Trash2, Loader2, Book } from 'lucide-react';
+import { Search, Plus, UploadCloud, FileText, Trash2, Loader2, Book, Link } from 'lucide-react';
 import { useState, useRef } from 'react';
 import { useAuth } from '@clerk/react';
 import axios from 'axios';
@@ -47,6 +47,30 @@ export default function KnowledgeVault({ documents, refreshDocs, activeNotebook 
     } finally {
       setUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  const [urlInput, setUrlInput] = useState('');
+  const [scraping, setScraping] = useState(false);
+
+  const handleUrlUpload = async () => {
+    if (!urlInput.trim()) return;
+    setScraping(true);
+    try {
+      const token = await getToken();
+      await axios.post(`${API_URL}/api/documents/feed-url`, {
+        url: urlInput,
+        notebookId: activeNotebook.id
+      }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      await refreshDocs();
+      setUrlInput('');
+    } catch (err) {
+      console.error('URL scrape failed:', err);
+      alert('Failed to scrape URL. Make sure it is publicly accessible.');
+    } finally {
+      setScraping(false);
     }
   };
 
@@ -129,16 +153,36 @@ export default function KnowledgeVault({ documents, refreshDocs, activeNotebook 
       </div>
 
       <div className="p-4">
-        <input type="file" ref={fileInputRef} onChange={handleUpload} className="hidden" accept=".pdf,.docx,.txt" />
+        <input type="file" ref={fileInputRef} onChange={handleUpload} className="hidden" accept=".pdf,.docx,.txt,.ppt,.pptx,.png,.jpg,.jpeg" />
         <button 
           onClick={() => fileInputRef.current?.click()}
           disabled={uploading}
-          className="w-full flex flex-col items-center justify-center p-6 border-2 border-dashed border-blue-200 rounded-xl bg-blue-50/50 hover:bg-blue-50 transition-colors text-blue-600"
+          className="w-full flex flex-col items-center justify-center p-6 border-2 border-dashed border-blue-200 rounded-xl bg-blue-50/50 hover:bg-blue-50 transition-colors text-blue-600 mb-4"
         >
           {uploading ? <Loader2 className="animate-spin mb-2" /> : <UploadCloud className="mb-2" />}
           <div className="font-semibold text-sm">{uploading ? 'Uploading...' : 'Upload Documents'}</div>
-          <div className="text-xs text-blue-400/80 mt-1">PDF, DOCX, TXT up to 50MB</div>
+          <div className="text-xs text-blue-400/80 mt-1">PDF, DOCX, TXT, PPT, Images up to 100MB</div>
         </button>
+
+        <div className="flex items-center gap-2">
+          <div className="relative flex-1">
+            <Link className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+            <input 
+              type="text" 
+              placeholder="Or paste a URL..." 
+              value={urlInput}
+              onChange={e => setUrlInput(e.target.value)}
+              className="w-full pl-9 pr-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none transition-all"
+            />
+          </div>
+          <button 
+            onClick={handleUrlUpload}
+            disabled={!urlInput.trim() || scraping}
+            className="px-4 py-2 bg-gray-800 hover:bg-gray-900 text-white text-sm font-semibold rounded-lg transition-colors disabled:opacity-50"
+          >
+            {scraping ? <Loader2 className="animate-spin" size={16} /> : 'Fetch'}
+          </button>
+        </div>
       </div>
     </div>
   );

@@ -1,6 +1,6 @@
 import { API_URL } from '../config';
 import { useState, useRef, useEffect } from 'react';
-import { Send, Paperclip, Mic, Sparkles, User, FileText, Copy, Check, Share2, Link } from 'lucide-react';
+import { Send, Paperclip, Mic, Sparkles, User, FileText, Copy, Check, Share2, Link, Wand2 } from 'lucide-react';
 import { marked } from 'marked';
 import { useAuth } from '@clerk/react';
 import axios from 'axios';
@@ -11,11 +11,72 @@ export default function ChatArea({ setActiveSource, activeNotebook }) {
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(false);
   const [copiedIndex, setCopiedIndex] = useState(null);
+  const [simplifyingIndex, setSimplifyingIndex] = useState(null);
 
   const handleCopy = (text, idx) => {
     navigator.clipboard.writeText(text);
     setCopiedIndex(idx);
     setTimeout(() => setCopiedIndex(null), 2000);
+  };
+
+  const handleSimplify = async (text, idx) => {
+    setSimplifyingIndex(idx);
+    // Clear the message content to stream the simplified version in its place
+    setMessages(prev => {
+      const updated = [...prev];
+      updated[idx] = { ...updated[idx], originalContent: updated[idx].originalContent || updated[idx].content, content: '' };
+      return updated;
+    });
+
+    try {
+      const token = await getToken();
+      const response = await fetch(`${API_URL}/api/query/simplify`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ text })
+      });
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder('utf-8');
+      let done = false;
+      let buffer = "";
+
+      while (!done) {
+        const { value, done: readerDone } = await reader.read();
+        done = readerDone;
+        if (value) {
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || "";
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              try {
+                const data = JSON.parse(line.slice(6));
+                if (data.type === 'chunk') {
+                  setMessages(prev => {
+                    const updated = [...prev];
+                    updated[idx] = { ...updated[idx], content: updated[idx].content + data.content, isSimplified: true };
+                    return updated;
+                  });
+                }
+              } catch(e) {}
+            }
+          }
+        }
+      }
+    } catch (err) {
+      console.error("Simplify error", err);
+    } finally {
+      setSimplifyingIndex(null);
+    }
+  };
+
+  const handleRestoreOriginal = (idx) => {
+    setMessages(prev => {
+      const updated = [...prev];
+      updated[idx] = { ...updated[idx], content: updated[idx].originalContent, isSimplified: false, originalContent: null };
+      return updated;
+    });
   };
     const [shareStatus, setShareStatus] = useState('Share');
 
@@ -63,7 +124,7 @@ export default function ChatArea({ setActiveSource, activeNotebook }) {
     if (!question.trim()) return;
 
     const userQ = question;
-    setMessages(prev => [...prev, { role: 'user', content: userQ }]);
+    setMessages(prev => [...prev, { role: 'user', content: userQ, timestamp: new Date() }]);
     setQuestion('');
     setLoading(true);
 
@@ -111,10 +172,18 @@ export default function ChatArea({ setActiveSource, activeNotebook }) {
                   
                   if (data.type === 'sources') {
                     lastMsg.detailedSources = data.detailedSources;
+                    lastMsg.isWebFallback = data.isWebFallback || false;
+                  } else if (data.type === 'fallback') {
+                    lastMsg.isWebFallback = true;
+                    lastMsg.detailedSources = [];
                   } else if (data.type === 'chunk') {
                     lastMsg.content += data.content;
+                  } else if (data.type === 'done') {
+                    // Stamp the exact moment the user sees the full response
+                    lastMsg.timestamp = new Date();
                   } else if (data.type === 'error') {
                     lastMsg.content += "\n\nError: " + data.message;
+                    lastMsg.timestamp = new Date();
                   }
                   
                   newMessages[newMessages.length - 1] = lastMsg;
@@ -137,6 +206,12 @@ export default function ChatArea({ setActiveSource, activeNotebook }) {
     }
   };
 
+  const formatTime = (ts) => {
+    if (!ts) return '';
+    const d = new Date(ts);
+    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  };
+
   return (
     <div className="flex-1 flex flex-col h-full bg-white relative">
       <div className="h-16 border-b border-gray-100 flex items-center px-6 bg-white shrink-0">
@@ -151,7 +226,8 @@ export default function ChatArea({ setActiveSource, activeNotebook }) {
 
       <div className="flex-1 overflow-y-auto p-6 space-y-6">
         {messages.map((msg, idx) => (
-          <div key={idx} className={`flex gap-4 max-w-4xl mx-auto ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
+          <div key={idx} className={`flex flex-col gap-1 max-w-4xl mx-auto ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
+            <div className={`flex gap-4 w-full ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
             <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 mt-1 ${
               msg.role === 'user' ? 'bg-gray-100 text-gray-600' : 'bg-blue-600 text-white'
             }`}>
@@ -169,19 +245,51 @@ export default function ChatArea({ setActiveSource, activeNotebook }) {
                 ) : (
                   <div className="relative group w-full">
                     <div 
-                    className="prose prose-sm prose-blue max-w-none text-[15px] leading-relaxed break-words"
-                    dangerouslySetInnerHTML={{ __html: marked.parse(String(msg.content || "")) }}
-                  />
-                    <button
-                      onClick={() => handleCopy(String(msg.content || ""), idx)}
-                      className="absolute -top-2 -right-2 p-1.5 text-gray-400 hover:text-gray-700 bg-white border border-gray-200 hover:bg-gray-50 shadow-sm rounded-lg opacity-0 group-hover:opacity-100 transition-all z-10"
-                      title="Copy response"
-                    >
-                      {copiedIndex === idx ? <Check size={14} className="text-green-500" /> : <Copy size={14} />}
-                    </button>
+                      className="prose prose-sm prose-blue max-w-none text-[15px] leading-relaxed break-words pr-8"
+                      dangerouslySetInnerHTML={{ __html: marked.parse(String(msg.content || "")) }}
+                    />
+                    <div className="absolute -top-2 -right-2 flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-all z-10">
+                      <button
+                        onClick={() => handleCopy(String(msg.content || ""), idx)}
+                        className="p-1.5 text-gray-400 hover:text-gray-700 bg-white border border-gray-200 hover:bg-gray-50 shadow-sm rounded-lg transition-all"
+                        title="Copy response"
+                      >
+                        {copiedIndex === idx ? <Check size={14} className="text-green-500" /> : <Copy size={14} />}
+                      </button>
+                      {!msg.isSimplified ? (
+                        <button
+                          onClick={() => handleSimplify(String(msg.content || ""), idx)}
+                          disabled={simplifyingIndex === idx}
+                          className="p-1.5 text-gray-400 hover:text-purple-600 bg-white border border-gray-200 hover:bg-purple-50 shadow-sm rounded-lg transition-all disabled:opacity-50"
+                          title="Simplify language"
+                        >
+                          {simplifyingIndex === idx ? <Sparkles size={14} className="animate-pulse text-purple-500" /> : <Wand2 size={14} />}
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => handleRestoreOriginal(idx)}
+                          className="p-1.5 text-purple-500 hover:text-gray-700 bg-purple-50 border border-purple-200 hover:bg-gray-50 shadow-sm rounded-lg transition-all"
+                          title="Restore original"
+                        >
+                          <Check size={14} />
+                        </button>
+                      )}
+                    </div>
+                    {msg.isSimplified && (
+                      <div className="mt-2 flex items-center gap-1.5 text-[11px] text-purple-500 font-semibold">
+                        <Wand2 size={11} /> Simplified version
+                        <button onClick={() => handleRestoreOriginal(idx)} className="underline ml-1 hover:text-purple-700">Restore original</button>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
+                            {msg.isWebFallback && (
+                  <div className="mt-3 flex items-start gap-2 px-3 py-2 bg-amber-50 border border-amber-200 rounded-xl text-amber-700 text-xs">
+                    <span className="text-base leading-none mt-0.5">⚠️</span>
+                    <span><strong>Not from your documents.</strong> This answer is based on Gemini's general knowledge because no relevant information was found in your uploaded files.</span>
+                  </div>
+                )}
               
               {msg.detailedSources && msg.detailedSources.length > 0 && (
                 <div className="mt-3 flex flex-wrap gap-2">
@@ -199,6 +307,13 @@ export default function ChatArea({ setActiveSource, activeNotebook }) {
                 </div>
               )}
             </div>
+            </div>
+            {/* Timestamp shown below the bubble */}
+            {msg.timestamp && (
+              <span className="text-[10px] text-gray-400 px-1 mt-0.5">
+                {msg.role === 'user' ? '🕐 Sent' : '✅ Received'} at {formatTime(msg.timestamp)}
+              </span>
+            )}
           </div>
         ))}
         

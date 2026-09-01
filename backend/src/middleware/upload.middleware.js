@@ -15,7 +15,8 @@ const storage  = multer.diskStorage({
 
 
 const fileFilter = (req,file,cb)=>{
-    const allowedFile = /pdf|docx|txt/;
+    // Added ppt, pptx, and image formats (png, jpg, jpeg)
+    const allowedFile = /pdf|docx|txt|pptx|ppt|png|jpg|jpeg/;
 
     const extName = allowedFile.test(path.extname(file.originalname).toLowerCase()); 
 
@@ -27,13 +28,10 @@ const fileFilter = (req,file,cb)=>{
     {
         cb( new ApiError(400,"file type not supported "),false);
     }
-   
-
-    
 }
 
 export const upload= multer({
         storage : storage,
         fileFilter:fileFilter,
-        limits: { fileSize: 50 * 1024 * 1024 } 
+        limits: { fileSize: 100 * 1024 * 1024 } 
     });
